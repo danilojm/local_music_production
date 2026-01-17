@@ -1,0 +1,47 @@
+{
+  "theme": "A futuristic cityscape at sunset, bathed in neon colors",
+  "mood": "energetic yet mysterious",
+  "color_palette": [
+    "neon green",
+    "vibrant purple",
+    "glowing pink"
+  ],
+  "music": {
+    "style": "electro-pop synthwave",
+    "bpm": 120,
+    "duration_seconds": 30,
+    "key": "Am",
+    "prompt": "A smooth melody with catchy hooks and futuristic undertones"
+  },
+  "images": {
+    "count": 6,
+    "width": 1920,
+    "height": 1080,
+    "base_prompt": "a neon city at night with hover cars in the background",
+    "negative_prompt": "no dark or horror themes"
+  },
+  "video": {
+    "fps": 30,
+    "resolution": "1920x1080",
+    "transition_type": "crossfade",
+    "transition_duration": 0.5
+  },
+  "youtube": {
+    "title": "Neon Metropolis: A Future Ethereal Journey",
+    "description": "Dive into a world of neon lights and futuristic cityscapes, synchronized with an electro-pop synthwave soundtrack.",
+    "tags": [
+      "neon future music video",
+      "electro pop",
+      "synthwave"
+    ],
+    "category": 10,
+    "privacy": "public"
+  },
+  "project_id": "project_20260117_175739_bz0sk3",
+  "created_at": "2026-01-17T17:57:39.217297",
+  "generator": {
+    "robot": "script_generator",
+    "model": "phi3",
+    "version": "1.0"
+  }
+}

@@ -1,0 +1,5 @@
+audiocraft;
+torch;
+torchaudio;
+numpy;
+soundfile;

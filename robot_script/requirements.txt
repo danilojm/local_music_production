@@ -1,0 +1,3 @@
+# Robot 1: Script Generator
+# Minimal dependencies - only need HTTP requests for Ollama API
+requests>=2.31.0
