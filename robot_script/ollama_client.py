@@ -1,6 +1,7 @@
 """
 Ollama Client
 =============
+
 Simple HTTP client for calling Ollama locally.
 
 Ollama must be installed and running:
@@ -9,16 +10,31 @@ Ollama must be installed and running:
 - Pull model: `ollama pull phi3`
 """
 
-import requests
+from typing import Optional
 import time
+
+import requests
 
 
 class OllamaClient:
     """
     Client for communicating with local Ollama instance.
+    
+    Provides methods to check Ollama status and generate text completions.
+    
+    Attributes:
+        model: The model name being used
+        base_url: Base URL of the Ollama API
     """
     
-    def __init__(self, model="phi3", base_url="http://localhost:11434"):
+    # Default timeout for generation requests (Ollama can be slow on CPU)
+    DEFAULT_TIMEOUT = 120
+    
+    def __init__(
+        self, 
+        model: str = "phi3", 
+        base_url: str = "http://localhost:11434"
+    ) -> None:
         """
         Initialize Ollama client.
         
@@ -27,8 +43,9 @@ class OllamaClient:
             base_url: Base URL of Ollama API (default: localhost)
         """
         self.model = model
-        self.base_url = base_url
-        self.generate_url = f"{base_url}/api/generate"
+        self.base_url = base_url.rstrip("/")
+        self._generate_url = f"{self.base_url}/api/generate"
+        self._tags_url = f"{self.base_url}/api/tags"
     
     def is_running(self) -> bool:
         """
@@ -38,12 +55,18 @@ class OllamaClient:
             True if Ollama is running, False otherwise
         """
         try:
-            response = requests.get(f"{self.base_url}/api/tags", timeout=2)
+            response = requests.get(self._tags_url, timeout=2)
             return response.status_code == 200
         except requests.exceptions.RequestException:
             return False
     
-    def generate(self, prompt: str, temperature=0.7, max_retries=3) -> str:
+    def generate(
+        self, 
+        prompt: str, 
+        temperature: float = 0.7, 
+        max_retries: int = 3,
+        timeout: Optional[int] = None,
+    ) -> str:
         """
         Send a prompt to Ollama and get response.
         
@@ -51,21 +74,24 @@ class OllamaClient:
             prompt: The prompt text to send
             temperature: Creativity (0.0=deterministic, 1.0=creative)
             max_retries: Number of retry attempts on failure
+            timeout: Request timeout in seconds (default: 120)
         
         Returns:
             Generated text response
         
         Raises:
             ConnectionError: If Ollama is not accessible
-            RuntimeError: If generation fails after retries
+            RuntimeError: If generation fails after all retries
         """
         if not self.is_running():
             raise ConnectionError(
                 "Ollama is not running. Please start it:\n"
                 "  1. Install: https://ollama.com/download\n"
                 "  2. Start: ollama serve\n"
-                "  3. Pull model: ollama pull " + self.model
+                f"  3. Pull model: ollama pull {self.model}"
             )
+        
+        request_timeout = timeout or self.DEFAULT_TIMEOUT
         
         payload = {
             "model": self.model,
@@ -76,14 +102,14 @@ class OllamaClient:
             }
         }
         
-        last_error = None
+        last_error: Optional[str] = None
         
         for attempt in range(max_retries):
             try:
                 response = requests.post(
-                    self.generate_url,
+                    self._generate_url,
                     json=payload,
-                    timeout=120  # Ollama can be slow on CPU, especially first load
+                    timeout=request_timeout
                 )
                 response.raise_for_status()
                 
@@ -102,4 +128,6 @@ class OllamaClient:
                     print(f"  ⚠ Error on attempt {attempt + 1}, retrying...")
                     time.sleep(2)
         
-        raise RuntimeError(f"Failed to generate after {max_retries} attempts: {last_error}")
+        raise RuntimeError(
+            f"Failed to generate after {max_retries} attempts: {last_error}"
+        )
