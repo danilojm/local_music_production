@@ -2,6 +2,7 @@
 """
 ROBOT 1: SCRIPT GENERATOR
 ==========================
+
 Generates project configuration using Ollama (local AI).
 
 Features:
@@ -10,7 +11,6 @@ Features:
 - NSFW filtering (moderate level)
 - Auto-retry on failure (up to 3 attempts)
 - Safe fallback defaults
-- Full error handling
 - JSON cleaning (removes inline comments)
 
 Requirements:
@@ -28,21 +28,26 @@ import random
 import re
 import string
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
-from datetime import datetime
+from typing import Any
 
 from ollama_client import OllamaClient
 from validator import (
     validate_config_structure,
     validate_safety,
     apply_safe_defaults,
-    sanitize_text
 )
 
 
 def generate_project_id() -> str:
-    """Generate a unique project identifier."""
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    """
+    Generate a unique project identifier.
+    
+    Returns:
+        Project ID in format: project_YYYYMMDD_HHMMSS_xxxxxx
+    """
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
     return f"project_{timestamp}_{random_suffix}"
 
@@ -51,11 +56,8 @@ def build_ollama_prompt() -> str:
     """
     Construct the prompt for Ollama.
     
-    This prompt instructs the LLM to generate a complete project configuration
-    in valid JSON format.
-    
     Returns:
-        Formatted prompt string
+        Formatted prompt string instructing LLM to generate valid JSON config
     """
     return """You are a creative AI assistant that generates configurations for AI music video projects.
 
@@ -119,31 +121,34 @@ def extract_json_from_response(response: str) -> str:
         response: Raw response from Ollama
     
     Returns:
-        Cleaned JSON string
+        Cleaned JSON string ready for parsing
     """
     # Remove markdown code blocks if present
-    response = response.strip()
+    cleaned = response.strip()
     
-    if response.startswith("```json"):
-        response = response[7:]
-    elif response.startswith("```"):
-        response = response[3:]
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:]
+    elif cleaned.startswith("```"):
+        cleaned = cleaned[3:]
     
-    if response.endswith("```"):
-        response = response[:-3]
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
     
-    response = response.strip()
+    cleaned = cleaned.strip()
     
     # Remove inline comments like: "category": "10" (Music & Entertainment)
     # Pattern: matches anything in parentheses after a quoted value
-    response = re.sub(r'"\s*\([^)]+\)\s*,', '",', response)
-    response = re.sub(r'"\s*\([^)]+\)\s*}', '"}', response)
-    response = re.sub(r'"\s*\([^)]+\)\s*\]', '"]', response)
+    cleaned = re.sub(r'"\s*\([^)]+\)\s*,', '",', cleaned)
+    cleaned = re.sub(r'"\s*\([^)]+\)\s*}', '"}', cleaned)
+    cleaned = re.sub(r'"\s*\([^)]+\)\s*\]', '"]', cleaned)
     
-    return response
+    return cleaned
 
 
-def generate_config_with_ollama(client: OllamaClient, max_attempts=3) -> dict:
+def generate_config_with_ollama(
+    client: OllamaClient, 
+    max_attempts: int = 3
+) -> dict[str, Any]:
     """
     Generate configuration using Ollama with validation and retry logic.
     
@@ -153,11 +158,9 @@ def generate_config_with_ollama(client: OllamaClient, max_attempts=3) -> dict:
     
     Returns:
         Valid configuration dictionary
-    
-    Raises:
-        RuntimeError: If all attempts fail
     """
     prompt = build_ollama_prompt()
+    json_text = ""  # Initialize for error handling
     
     for attempt in range(1, max_attempts + 1):
         print(f"\n{'='*60}")
@@ -210,7 +213,8 @@ def generate_config_with_ollama(client: OllamaClient, max_attempts=3) -> dict:
             
         except json.JSONDecodeError as e:
             print(f"✗ JSON parsing failed: {e}")
-            print(f"  Raw response preview: {json_text[:200]}...")
+            preview = json_text[:200] if json_text else "(empty response)"
+            print(f"  Raw response preview: {preview}...")
             if attempt < max_attempts:
                 print("→ Retrying...")
             else:
@@ -225,13 +229,19 @@ def generate_config_with_ollama(client: OllamaClient, max_attempts=3) -> dict:
                 print("→ All attempts failed, using safe defaults...")
                 return apply_safe_defaults({})
     
-    # Should never reach here, but just in case
+    # Fallback (should not reach here normally)
     print("✗ All generation attempts failed")
     print("→ Using safe defaults...")
     return apply_safe_defaults({})
 
 
-def main():
+def main() -> int:
+    """
+    Main entry point for the script generator.
+    
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
     parser = argparse.ArgumentParser(
         description="Generate project configuration using Ollama",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -272,7 +282,7 @@ Supported models (must be pulled first with 'ollama pull'):
     print("\n" + "="*60)
     print("ROBOT 1: SCRIPT GENERATOR")
     print("="*60)
-    print(f"Model: {args.model}")
+    print(f"Model:  {args.model}")
     print(f"Output: {output_path}")
     print("="*60)
     
@@ -289,7 +299,7 @@ Supported models (must be pulled first with 'ollama pull'):
         print("  2. Start Ollama: ollama serve")
         print(f"  3. Pull model: ollama pull {args.model}")
         print("\nThen run this script again.")
-        sys.exit(1)
+        return 1
     
     print("✓ Ollama is running")
     
@@ -298,7 +308,7 @@ Supported models (must be pulled first with 'ollama pull'):
     
     # Add metadata
     config["project_id"] = generate_project_id()
-    config["created_at"] = datetime.utcnow().isoformat()
+    config["created_at"] = datetime.now(timezone.utc).isoformat()
     config["generator"] = {
         "robot": "script_generator",
         "model": args.model,
@@ -322,7 +332,9 @@ Supported models (must be pulled first with 'ollama pull'):
     print(f"Video title: {config['youtube']['title']}")
     print(f"\nSaved to: {output_path}")
     print("="*60)
+    
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

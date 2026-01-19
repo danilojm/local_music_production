@@ -1,6 +1,7 @@
 """
 Validator & Safety Filter
 ==========================
+
 Validates JSON structure and filters NSFW/unsafe content.
 
 Safety Level: MODERATE
@@ -9,11 +10,11 @@ Safety Level: MODERATE
 """
 
 import re
-from typing import Dict, Any, List, Tuple
+from typing import Any
 
 
 # MODERATE safety filtering - blocks explicit content but allows edgy themes
-BLOCKED_KEYWORDS = [
+BLOCKED_KEYWORDS: list[str] = [
     # Explicit sexual content
     "porn", "pornographic", "nude", "naked", "sex", "sexual", "nsfw",
     "erotic", "xxx", "hentai", "explicit", "genital", "breast", "penis",
@@ -36,7 +37,25 @@ BLOCKED_KEYWORDS = [
 ]
 
 
-def contains_blocked_content(text: str) -> Tuple[bool, List[str]]:
+# Safe replacements for blocked content
+SAFE_REPLACEMENTS: dict[str, str] = {
+    "nude": "minimalist",
+    "naked": "bare",
+    "sex": "romance",
+    "sexual": "romantic",
+    "erotic": "sensual",
+    "gore": "intense",
+    "gory": "dramatic",
+    "blood": "red",
+    "kill": "defeat",
+    "murder": "conflict",
+    "drug": "substance",
+    "cocaine": "powder",
+    "meth": "crystal",
+}
+
+
+def contains_blocked_content(text: str) -> tuple[bool, list[str]]:
     """
     Check if text contains blocked keywords.
     
@@ -46,8 +65,11 @@ def contains_blocked_content(text: str) -> Tuple[bool, List[str]]:
     Returns:
         Tuple of (is_blocked, list_of_found_keywords)
     """
+    if not text:
+        return (False, [])
+    
     text_lower = text.lower()
-    found = []
+    found: list[str] = []
     
     for keyword in BLOCKED_KEYWORDS:
         # Use word boundaries to avoid false positives
@@ -67,39 +89,25 @@ def sanitize_text(text: str) -> str:
         text: Text to sanitize
     
     Returns:
-        Cleaned text
+        Cleaned text with blocked words replaced
     """
-    is_blocked, keywords = contains_blocked_content(text)
+    if not text:
+        return text
+    
+    is_blocked, _ = contains_blocked_content(text)
     
     if not is_blocked:
         return text
     
-    # Replace blocked keywords with safe alternatives
-    replacements = {
-        "nude": "minimalist",
-        "naked": "bare",
-        "sex": "romance",
-        "sexual": "romantic",
-        "erotic": "sensual",
-        "gore": "intense",
-        "gory": "dramatic",
-        "blood": "red",
-        "kill": "defeat",
-        "murder": "conflict",
-        "drug": "substance",
-        "cocaine": "powder",
-        "meth": "crystal"
-    }
-    
     sanitized = text
-    for blocked, replacement in replacements.items():
+    for blocked, replacement in SAFE_REPLACEMENTS.items():
         pattern = r'\b' + re.escape(blocked) + r'\b'
         sanitized = re.sub(pattern, replacement, sanitized, flags=re.IGNORECASE)
     
     return sanitized
 
 
-def validate_config_structure(config: Dict[str, Any]) -> Tuple[bool, List[str]]:
+def validate_config_structure(config: dict[str, Any]) -> tuple[bool, list[str]]:
     """
     Validate that config has all required fields with correct types.
     
@@ -109,14 +117,15 @@ def validate_config_structure(config: Dict[str, Any]) -> Tuple[bool, List[str]]:
     Returns:
         Tuple of (is_valid, list_of_errors)
     """
-    errors = []
+    errors: list[str] = []
     
-    # Check top-level fields
+    # Required top-level fields
     required_top = ["theme", "mood", "color_palette", "music", "images", "video", "youtube"]
     for field in required_top:
         if field not in config:
             errors.append(f"Missing top-level field: {field}")
     
+    # Validate top-level types
     if "theme" in config and not isinstance(config["theme"], str):
         errors.append("Field 'theme' must be a string")
     
@@ -129,74 +138,113 @@ def validate_config_structure(config: Dict[str, Any]) -> Tuple[bool, List[str]]:
         elif len(config["color_palette"]) < 2:
             errors.append("Field 'color_palette' must have at least 2 colors")
     
-    # Check music section
-    if "music" in config:
-        music = config["music"]
-        required_music = ["style", "bpm", "duration_seconds", "key", "prompt"]
-        for field in required_music:
-            if field not in music:
-                errors.append(f"Missing music field: {field}")
-        
-        if "bpm" in music and not isinstance(music["bpm"], (int, float)):
-            errors.append("Field 'music.bpm' must be a number")
-        elif "bpm" in music and not (60 <= music["bpm"] <= 200):
-            errors.append("Field 'music.bpm' must be between 60 and 200")
-        
-        if "duration_seconds" in music and not isinstance(music["duration_seconds"], (int, float)):
-            errors.append("Field 'music.duration_seconds' must be a number")
-        elif "duration_seconds" in music and not (20 <= music["duration_seconds"] <= 60):
-            errors.append("Field 'music.duration_seconds' must be between 20 and 60")
+    # Validate music section
+    if "music" in config and isinstance(config["music"], dict):
+        errors.extend(_validate_music_section(config["music"]))
     
-    # Check images section
-    if "images" in config:
-        images = config["images"]
-        required_images = ["count", "width", "height", "base_prompt", "negative_prompt"]
-        for field in required_images:
-            if field not in images:
-                errors.append(f"Missing images field: {field}")
-        
-        if "count" in images and not isinstance(images["count"], int):
-            errors.append("Field 'images.count' must be an integer")
-        elif "count" in images and not (6 <= images["count"] <= 20):
-            errors.append("Field 'images.count' must be between 6 and 20")
-        
-        if "width" in images and not isinstance(images["width"], int):
-            errors.append("Field 'images.width' must be an integer")
-        
-        if "height" in images and not isinstance(images["height"], int):
-            errors.append("Field 'images.height' must be an integer")
+    # Validate images section
+    if "images" in config and isinstance(config["images"], dict):
+        errors.extend(_validate_images_section(config["images"]))
     
-    # Check video section
-    if "video" in config:
-        video = config["video"]
-        required_video = ["fps", "resolution", "transition_type", "transition_duration"]
-        for field in required_video:
-            if field not in video:
-                errors.append(f"Missing video field: {field}")
-        
-        if "fps" in video and not isinstance(video["fps"], (int, float)):
-            errors.append("Field 'video.fps' must be a number")
-        elif "fps" in video and not (24 <= video["fps"] <= 60):
-            errors.append("Field 'video.fps' must be between 24 and 60")
+    # Validate video section
+    if "video" in config and isinstance(config["video"], dict):
+        errors.extend(_validate_video_section(config["video"]))
     
-    # Check youtube section
-    if "youtube" in config:
-        youtube = config["youtube"]
-        required_youtube = ["title", "description", "tags", "category", "privacy"]
-        for field in required_youtube:
-            if field not in youtube:
-                errors.append(f"Missing youtube field: {field}")
-        
-        if "tags" in youtube and not isinstance(youtube["tags"], list):
-            errors.append("Field 'youtube.tags' must be a list")
-        
-        if "privacy" in youtube and youtube["privacy"] not in ["public", "unlisted", "private"]:
-            errors.append("Field 'youtube.privacy' must be 'public', 'unlisted', or 'private'")
+    # Validate youtube section
+    if "youtube" in config and isinstance(config["youtube"], dict):
+        errors.extend(_validate_youtube_section(config["youtube"]))
     
     return (len(errors) == 0, errors)
 
 
-def validate_safety(config: Dict[str, Any]) -> Tuple[bool, List[str]]:
+def _validate_music_section(music: dict[str, Any]) -> list[str]:
+    """Validate music section fields."""
+    errors: list[str] = []
+    
+    required_fields = ["style", "bpm", "duration_seconds", "key", "prompt"]
+    for field in required_fields:
+        if field not in music:
+            errors.append(f"Missing music field: {field}")
+    
+    if "bpm" in music:
+        if not isinstance(music["bpm"], (int, float)):
+            errors.append("Field 'music.bpm' must be a number")
+        elif not (60 <= music["bpm"] <= 200):
+            errors.append("Field 'music.bpm' must be between 60 and 200")
+    
+    if "duration_seconds" in music:
+        if not isinstance(music["duration_seconds"], (int, float)):
+            errors.append("Field 'music.duration_seconds' must be a number")
+        elif not (20 <= music["duration_seconds"] <= 60):
+            errors.append("Field 'music.duration_seconds' must be between 20 and 60")
+    
+    return errors
+
+
+def _validate_images_section(images: dict[str, Any]) -> list[str]:
+    """Validate images section fields."""
+    errors: list[str] = []
+    
+    required_fields = ["count", "width", "height", "base_prompt", "negative_prompt"]
+    for field in required_fields:
+        if field not in images:
+            errors.append(f"Missing images field: {field}")
+    
+    if "count" in images:
+        if not isinstance(images["count"], int):
+            errors.append("Field 'images.count' must be an integer")
+        elif not (6 <= images["count"] <= 20):
+            errors.append("Field 'images.count' must be between 6 and 20")
+    
+    if "width" in images and not isinstance(images["width"], int):
+        errors.append("Field 'images.width' must be an integer")
+    
+    if "height" in images and not isinstance(images["height"], int):
+        errors.append("Field 'images.height' must be an integer")
+    
+    return errors
+
+
+def _validate_video_section(video: dict[str, Any]) -> list[str]:
+    """Validate video section fields."""
+    errors: list[str] = []
+    
+    required_fields = ["fps", "resolution", "transition_type", "transition_duration"]
+    for field in required_fields:
+        if field not in video:
+            errors.append(f"Missing video field: {field}")
+    
+    if "fps" in video:
+        if not isinstance(video["fps"], (int, float)):
+            errors.append("Field 'video.fps' must be a number")
+        elif not (24 <= video["fps"] <= 60):
+            errors.append("Field 'video.fps' must be between 24 and 60")
+    
+    return errors
+
+
+def _validate_youtube_section(youtube: dict[str, Any]) -> list[str]:
+    """Validate youtube section fields."""
+    errors: list[str] = []
+    
+    required_fields = ["title", "description", "tags", "category", "privacy"]
+    for field in required_fields:
+        if field not in youtube:
+            errors.append(f"Missing youtube field: {field}")
+    
+    if "tags" in youtube and not isinstance(youtube["tags"], list):
+        errors.append("Field 'youtube.tags' must be a list")
+    
+    valid_privacy = ["public", "unlisted", "private"]
+    if "privacy" in youtube and youtube["privacy"] not in valid_privacy:
+        errors.append(
+            f"Field 'youtube.privacy' must be one of: {', '.join(valid_privacy)}"
+        )
+    
+    return errors
+
+
+def validate_safety(config: dict[str, Any]) -> tuple[bool, list[str]]:
     """
     Check all text fields for blocked content.
     
@@ -206,28 +254,30 @@ def validate_safety(config: Dict[str, Any]) -> Tuple[bool, List[str]]:
     Returns:
         Tuple of (is_safe, list_of_violations)
     """
-    violations = []
+    violations: list[str] = []
     
-    # Check all text fields
+    # Text fields to check
     text_fields = [
         ("theme", config.get("theme", "")),
         ("mood", config.get("mood", "")),
         ("music.prompt", config.get("music", {}).get("prompt", "")),
         ("images.base_prompt", config.get("images", {}).get("base_prompt", "")),
         ("youtube.title", config.get("youtube", {}).get("title", "")),
-        ("youtube.description", config.get("youtube", {}).get("description", ""))
+        ("youtube.description", config.get("youtube", {}).get("description", "")),
     ]
     
     for field_name, text in text_fields:
         if isinstance(text, str):
             is_blocked, keywords = contains_blocked_content(text)
             if is_blocked:
-                violations.append(f"Field '{field_name}' contains blocked keywords: {', '.join(keywords)}")
+                violations.append(
+                    f"Field '{field_name}' contains blocked keywords: {', '.join(keywords)}"
+                )
     
     return (len(violations) == 0, violations)
 
 
-def apply_safe_defaults(config: Dict[str, Any]) -> Dict[str, Any]:
+def apply_safe_defaults(config: dict[str, Any]) -> dict[str, Any]:
     """
     Fill in missing or invalid fields with safe defaults.
     
@@ -235,9 +285,9 @@ def apply_safe_defaults(config: Dict[str, Any]) -> Dict[str, Any]:
         config: Configuration dictionary (may be incomplete)
     
     Returns:
-        Complete configuration with safe defaults
+        Complete configuration with safe defaults applied
     """
-    defaults = {
+    defaults: dict[str, Any] = {
         "theme": "cinematic neon cityscape at night",
         "mood": "atmospheric, mysterious, energetic",
         "color_palette": ["electric blue", "neon pink", "deep purple", "cyan"],
@@ -273,12 +323,13 @@ def apply_safe_defaults(config: Dict[str, Any]) -> Dict[str, Any]:
     # Deep merge: use config values if present, otherwise use defaults
     result = defaults.copy()
     
-    for key in defaults:
-        if key in config and isinstance(config[key], dict):
-            # Merge nested dictionaries
-            result[key] = {**defaults[key], **config[key]}
-        elif key in config:
-            # Use config value
-            result[key] = config[key]
+    for key, default_value in defaults.items():
+        if key in config:
+            if isinstance(default_value, dict) and isinstance(config[key], dict):
+                # Merge nested dictionaries
+                result[key] = {**default_value, **config[key]}
+            else:
+                # Use config value
+                result[key] = config[key]
     
     return result
