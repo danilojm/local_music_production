@@ -68,7 +68,8 @@ class MusicGenEngine:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"→ Using device: {self.device}")
 
-        self.model = MusicGen.get_pretrained(model_name).to(self.device)
+        # MusicGen handles device placement internally based on CUDA availability
+        self.model = MusicGen.get_pretrained(model_name)
         self.sample_rate = self.SAMPLE_RATE
 
     def generate(
