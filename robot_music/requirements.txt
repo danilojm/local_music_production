@@ -1,6 +1,21 @@
 # Robot Music - Music Generator Dependencies
+# 
+# IMPORTANT: Version constraints are carefully pinned to avoid compatibility issues:
+# - NumPy 2.x is incompatible with many PyTorch builds (compiled with NumPy 1.x)
+# - audiocraft requires specific versions of torch and transformers
+#
+# Recommended: Use Python 3.10 or 3.11
+
+# Core ML dependencies - pinned for compatibility
+numpy>=1.24.0,<2.0.0
+torch>=2.0.0,<2.2.0
+torchaudio>=2.0.0,<2.2.0
+
+# AudioCraft and related
 audiocraft>=1.0.0
-torch>=2.0.0
-torchaudio>=2.0.0
-numpy>=1.24.0
+
+# Transformers - pin to avoid pytree compatibility issues with torch
+transformers>=4.31.0,<4.40.0
+
+# Audio processing
 soundfile>=0.12.0

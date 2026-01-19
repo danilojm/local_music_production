@@ -12,13 +12,29 @@ This project consists of two "robots" that work together:
 ## Requirements
 
 ### System Requirements
-- Python 3.10+
+- **Python 3.10 or 3.11** (recommended - 3.12+ may have compatibility issues)
 - CUDA-capable GPU (recommended for MusicGen)
 - 8GB+ RAM
 
 ### Software Dependencies
 - [Ollama](https://ollama.com/download) - For local LLM inference
 - PyTorch with CUDA support (for GPU acceleration)
+
+### Dependency Compatibility Notes
+
+⚠️ **Important**: This project has specific version requirements to avoid conflicts:
+
+- **NumPy**: Must be <2.0.0 (NumPy 2.x is incompatible with PyTorch builds compiled with NumPy 1.x)
+- **PyTorch**: Version 2.0.x or 2.1.x recommended
+- **Transformers**: Version 4.31.0-4.39.x (to avoid `torch.utils._pytree` compatibility issues)
+
+If you encounter dependency conflicts, we recommend using a fresh virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
 
 ## Installation
 
